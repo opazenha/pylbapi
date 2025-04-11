@@ -1,0 +1,96 @@
+from typing import Dict, Any, Optional, List, Union, Type
+from datetime import datetime
+import json
+
+from app.db.database import Database
+from pydantic import BaseModel
+
+class CacheService:
+    """Service for caching API responses in MongoDB."""
+    
+    @staticmethod
+    async def get_cached_response(collection_name: str, resource_id: str) -> Optional[Dict[str, Any]]:
+        """
+        Get a cached response from MongoDB.
+        
+        Args:
+            collection_name: Name of the collection to search in
+            resource_id: ID of the resource to fetch
+            
+        Returns:
+            Cached response or None if not found
+        """
+        return await Database.find_one(collection_name, {"id": resource_id})
+    
+    @staticmethod
+    async def cache_response(collection_name: str, data: Dict[str, Any]) -> str:
+        """
+        Cache a response in MongoDB.
+        
+        Args:
+            collection_name: Name of the collection to store in
+            data: Data to cache
+            
+        Returns:
+            ID of the inserted document
+        """
+        # Check if the record already exists
+        existing = await Database.find_one(collection_name, {"id": data["id"]})
+        
+        if existing:
+            # Update the existing document
+            await Database.update_one(
+                collection_name,
+                {"id": data["id"]},
+                {"$set": data}
+            )
+            return data["id"]
+        else:
+            # Insert a new document
+            return await Database.insert_one(collection_name, data)
+    
+    @staticmethod
+    async def handle_request(
+        collection_name: str, 
+        resource_id: str, 
+        fetch_function: callable,
+        response_model: Type[BaseModel] = None,
+        **kwargs
+    ) -> Dict[str, Any]:
+        """
+        Handle an API request with caching.
+        
+        Args:
+            collection_name: Name of the collection to store in
+            resource_id: ID of the resource to fetch
+            fetch_function: Function to call if cache miss
+            response_model: Pydantic model for response validation
+            **kwargs: Additional arguments to pass to fetch_function
+            
+        Returns:
+            Response data, either from cache or freshly fetched
+        """
+        # Check if we have a cached response
+        cached = await CacheService.get_cached_response(collection_name, resource_id)
+        
+        if cached:
+            # Remove MongoDB's _id field before returning
+            if "_id" in cached:
+                cached.pop("_id")
+            return cached
+        
+        # If not cached, fetch from the API
+        response = fetch_function(**kwargs)
+        
+        # Ensure the response has an ID field
+        if hasattr(response, "id") and response.id:
+            # Cache the response (convert to dict if it's a Pydantic model)
+            data = response.dict() if hasattr(response, "dict") else response
+            
+            # Add updatedAt timestamp
+            if not hasattr(data, "updatedAt") or not data.get("updatedAt"):
+                data["updatedAt"] = datetime.utcnow().isoformat()
+                
+            await CacheService.cache_response(collection_name, data)
+        
+        return response
