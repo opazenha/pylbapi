@@ -25,19 +25,26 @@ async def search_players(player_name: str, page_number: Optional[int] = 1):
 
 
 @router.get("/{player_id}/profile", response_model=schemas.PlayerProfile, response_model_exclude_none=True)
-async def get_player_profile(player_id: str):
+async def get_player_profile(player_id: str, isLbPlayer: bool = False):
     # Check cache first
     cached_data = await CacheService.get_cached_response("players", player_id)
-    if cached_data:
+    # Check if cache exists and is not older than 1 day
+    if cached_data and not await CacheService.is_cache_expired(cached_data):
+        # If we're updating the isLbPlayer flag, update the cached record
+        if isLbPlayer != cached_data.get("isLbPlayer", False):
+            cached_data["isLbPlayer"] = isLbPlayer
+            await CacheService.cache_response("players", cached_data)
         return cached_data
         
-    # If not in cache, fetch from the API
+    # If not in cache or cache is expired, fetch from the API
     tfmkt = TransfermarktPlayerProfile(player_id=player_id)
     player_info = tfmkt.get_player_profile()
     
     # Cache the result
     if player_info:
         data = player_info.dict() if hasattr(player_info, "dict") else player_info
+        # Add the LB player flag
+        data["isLbPlayer"] = isLbPlayer
         await CacheService.cache_response("players", data)
         
     return player_info
@@ -47,10 +54,11 @@ async def get_player_profile(player_id: str):
 async def get_player_market_value(player_id: str):
     # Check cache first
     cached_data = await CacheService.get_cached_response("player_market_values", player_id)
-    if cached_data:
+    # Check if cache exists and is not older than 1 day
+    if cached_data and not await CacheService.is_cache_expired(cached_data):
         return cached_data
         
-    # If not in cache, fetch from the API
+    # If not in cache or cache is expired, fetch from the API
     tfmkt = TransfermarktPlayerMarketValue(player_id=player_id)
     player_market_value = tfmkt.get_player_market_value()
     
@@ -66,10 +74,11 @@ async def get_player_market_value(player_id: str):
 async def get_player_transfers(player_id: str):
     # Check cache first
     cached_data = await CacheService.get_cached_response("player_transfers", player_id)
-    if cached_data:
+    # Check if cache exists and is not older than 1 day
+    if cached_data and not await CacheService.is_cache_expired(cached_data):
         return cached_data
         
-    # If not in cache, fetch from the API
+    # If not in cache or cache is expired, fetch from the API
     tfmkt = TransfermarktPlayerTransfers(player_id=player_id)
     player_transfers = tfmkt.get_player_transfers()
     
@@ -85,10 +94,11 @@ async def get_player_transfers(player_id: str):
 async def get_player_jersey_numbers(player_id: str):
     # Check cache first
     cached_data = await CacheService.get_cached_response("player_jersey_numbers", player_id)
-    if cached_data:
+    # Check if cache exists and is not older than 1 day
+    if cached_data and not await CacheService.is_cache_expired(cached_data):
         return cached_data
         
-    # If not in cache, fetch from the API
+    # If not in cache or cache is expired, fetch from the API
     tfmkt = TransfermarktPlayerJerseyNumbers(player_id=player_id)
     player_jerseynumbers = tfmkt.get_player_jersey_numbers()
     
@@ -104,10 +114,11 @@ async def get_player_jersey_numbers(player_id: str):
 async def get_player_stats(player_id: str):
     # Check cache first
     cached_data = await CacheService.get_cached_response("player_stats", player_id)
-    if cached_data:
+    # Check if cache exists and is not older than 1 day
+    if cached_data and not await CacheService.is_cache_expired(cached_data):
         return cached_data
         
-    # If not in cache, fetch from the API
+    # If not in cache or cache is expired, fetch from the API
     tfmkt = TransfermarktPlayerStats(player_id=player_id)
     player_stats = tfmkt.get_player_stats()
     
@@ -124,10 +135,11 @@ async def get_player_injuries(player_id: str, page_number: Optional[int] = 1):
     # Check cache first - we include page number in the cache key
     cache_key = f"{player_id}_{page_number}"
     cached_data = await CacheService.get_cached_response("player_injuries", cache_key)
-    if cached_data:
+    # Check if cache exists and is not older than 1 day
+    if cached_data and not await CacheService.is_cache_expired(cached_data):
         return cached_data
         
-    # If not in cache, fetch from the API
+    # If not in cache or cache is expired, fetch from the API
     tfmkt = TransfermarktPlayerInjuries(player_id=player_id, page_number=page_number)
     players_injuries = tfmkt.get_player_injuries()
     
@@ -144,10 +156,11 @@ async def get_player_injuries(player_id: str, page_number: Optional[int] = 1):
 async def get_player_achievements(player_id: str):
     # Check cache first
     cached_data = await CacheService.get_cached_response("player_achievements", player_id)
-    if cached_data:
+    # Check if cache exists and is not older than 1 day
+    if cached_data and not await CacheService.is_cache_expired(cached_data):
         return cached_data
         
-    # If not in cache, fetch from the API
+    # If not in cache or cache is expired, fetch from the API
     tfmkt = TransfermarktPlayerAchievements(player_id=player_id)
     player_achievements = tfmkt.get_player_achievements()
     

@@ -1,5 +1,5 @@
 from typing import Dict, Any, Optional, List, Union, Type
-from datetime import datetime
+from datetime import datetime, timedelta
 import json
 
 from app.db.database import Database
@@ -7,6 +7,9 @@ from pydantic import BaseModel
 
 class CacheService:
     """Service for caching API responses in MongoDB."""
+    
+    # Cache expiration time in days
+    CACHE_EXPIRATION_DAYS = 1
     
     @staticmethod
     async def get_cached_response(collection_name: str, resource_id: str) -> Optional[Dict[str, Any]]:
@@ -23,6 +26,33 @@ class CacheService:
         return await Database.find_one(collection_name, {"id": resource_id})
     
     @staticmethod
+    async def is_cache_expired(data: Dict[str, Any]) -> bool:
+        """
+        Check if cached data is expired (older than CACHE_EXPIRATION_DAYS).
+        
+        Args:
+            data: Cached data with updatedAt field
+            
+        Returns:
+            True if cache is expired, False otherwise
+        """
+        if not data or "updatedAt" not in data:
+            return True
+            
+        try:
+            # Parse the updatedAt timestamp (could be string or datetime object)
+            if isinstance(data["updatedAt"], str):
+                updated_at = datetime.fromisoformat(data["updatedAt"].replace("Z", "+00:00"))
+            else:
+                updated_at = data["updatedAt"]
+                
+            # Check if the cache is older than CACHE_EXPIRATION_DAYS
+            return datetime.utcnow() - updated_at > timedelta(days=CacheService.CACHE_EXPIRATION_DAYS)
+        except (ValueError, TypeError):
+            # If there's any error parsing the date, consider the cache expired
+            return True
+    
+    @staticmethod
     async def cache_response(collection_name: str, data: Dict[str, Any]) -> str:
         """
         Cache a response in MongoDB.
@@ -34,6 +64,9 @@ class CacheService:
         Returns:
             ID of the inserted document
         """
+        # Add updatedAt timestamp
+        data["updatedAt"] = datetime.utcnow()
+        
         # Check if the record already exists
         existing = await Database.find_one(collection_name, {"id": data["id"]})
         
@@ -46,6 +79,8 @@ class CacheService:
             )
             return data["id"]
         else:
+            # Set createdAt timestamp for new documents
+            data["createdAt"] = datetime.utcnow()
             # Insert a new document
             return await Database.insert_one(collection_name, data)
     

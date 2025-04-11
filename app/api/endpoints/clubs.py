@@ -23,16 +23,18 @@ async def search_clubs(club_name: str, page_number: Optional[int] = 1) -> dict:
 async def get_club_profile(club_id: str) -> dict:
     # Check cache first
     cached_data = await CacheService.get_cached_response("clubs", club_id)
-    if cached_data:
+    # Check if cache exists and is not older than 1 day
+    if cached_data and not await CacheService.is_cache_expired(cached_data):
         return cached_data
         
-    # If not in cache, fetch from the API
+    # If not in cache or cache is expired, fetch from the API
     tfmkt = TransfermarktClubProfile(club_id=club_id)
     club_profile = tfmkt.get_club_profile()
     
     # Cache the result
     if club_profile:
-        await CacheService.cache_response("clubs", club_profile.dict())
+        data = club_profile.dict() if hasattr(club_profile, "dict") else club_profile
+        await CacheService.cache_response("clubs", data)
         
     return club_profile
 
@@ -44,10 +46,11 @@ async def get_club_players(club_id: str, season_id: Optional[str] = None) -> dic
     
     # Check cache first
     cached_data = await CacheService.get_cached_response("club_players", cache_key)
-    if cached_data:
+    # Check if cache exists and is not older than 1 day
+    if cached_data and not await CacheService.is_cache_expired(cached_data):
         return cached_data
         
-    # If not in cache, fetch from the API
+    # If not in cache or cache is expired, fetch from the API
     tfmkt = TransfermarktClubPlayers(club_id=club_id, season_id=season_id)
     club_players = tfmkt.get_club_players()
     

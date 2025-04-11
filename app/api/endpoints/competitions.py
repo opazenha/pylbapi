@@ -25,10 +25,11 @@ async def get_competition_clubs(competition_id: str, season_id: Optional[str] = 
     
     # Check cache first
     cached_data = await CacheService.get_cached_response("competitions", cache_key)
-    if cached_data:
+    # Check if cache exists and is not older than 1 day
+    if cached_data and not await CacheService.is_cache_expired(cached_data):
         return cached_data
         
-    # If not in cache, fetch from the API
+    # If not in cache or cache is expired, fetch from the API
     tfmkt = TransfermarktCompetitionClubs(competition_id=competition_id, season_id=season_id)
     competition_clubs = tfmkt.get_competition_clubs()
     
