@@ -16,19 +16,61 @@ from app.db.cache_service import CacheService
 router = APIRouter()
 
 
-@router.get("/search/{player_name}", response_model=schemas.PlayerSearch, response_model_exclude_none=True)
-async def search_players(player_name: str, page_number: Optional[int] = 1):
+@router.get(
+    "/search/{player_name}",
+    response_model=schemas.PlayerSearch,
+    response_model_exclude_none=True,
+    summary="Search for players by name",
+    description="Returns a list of players matching the search query. This endpoint is not cached.",
+    response_description="List of players matching the search query"
+)
+async def search_players(
+    player_name: str,
+    page_number: Optional[int] = 1
+):
+    """
+    Search for players by name.
+    
+    - **player_name**: Name or part of the name to search for
+    - **page_number**: Optional page number for paginated results (default: 1)
+    """
     # Search endpoints don't use caching
     tfmkt = TransfermarktPlayerSearch(query=player_name, page_number=page_number)
     found_players = tfmkt.search_players()
     return found_players
 
 
-@router.get("/{player_id}/profile", response_model=schemas.PlayerProfile, response_model_exclude_none=True)
-async def get_player_profile(player_id: str, isLbPlayer: bool = False):
+@router.get(
+    "/{player_id}/profile",
+    response_model=schemas.PlayerProfile,
+    response_model_exclude_none=True,
+    summary="Get player profile by ID",
+    description="""
+    Returns detailed information about a player, including:
+    - Basic information (name, birth date, nationality)
+    - Current club and contract details
+    - League information
+    - Market value
+    - Agent information
+    - Social media links
+    
+    The response is cached for 3 days to minimize scraping operations.
+    """,
+    response_description="Detailed player profile information"
+)
+async def get_player_profile(
+    player_id: str,
+    isLbPlayer: bool = False
+):
+    """
+    Get detailed profile information for a specific player.
+    
+    - **player_id**: Transfermarkt player ID
+    - **isLbPlayer**: Flag to mark if the player is part of the LB agency (default: False)
+    """
     # Check cache first
     cached_data = await CacheService.get_cached_response("players", player_id)
-    # Check if cache exists and is not older than 1 day
+    # Check if cache exists and is not expired
     if cached_data and not await CacheService.is_cache_expired(cached_data):
         # If we're updating the isLbPlayer flag, update the cached record
         if isLbPlayer != cached_data.get("isLbPlayer", False):
@@ -50,11 +92,25 @@ async def get_player_profile(player_id: str, isLbPlayer: bool = False):
     return player_info
 
 
-@router.get("/{player_id}/market_value", response_model=schemas.PlayerMarketValue, response_model_exclude_none=True)
-async def get_player_market_value(player_id: str):
+@router.get(
+    "/{player_id}/market_value",
+    response_model=schemas.PlayerMarketValue,
+    response_model_exclude_none=True,
+    summary="Get player market value by ID",
+    description="Returns the current market value of a player.",
+    response_description="Player market value information"
+)
+async def get_player_market_value(
+    player_id: str
+):
+    """
+    Get the current market value of a specific player.
+    
+    - **player_id**: Transfermarkt player ID
+    """
     # Check cache first
     cached_data = await CacheService.get_cached_response("player_market_values", player_id)
-    # Check if cache exists and is not older than 1 day
+    # Check if cache exists and is not expired
     if cached_data and not await CacheService.is_cache_expired(cached_data):
         return cached_data
         
@@ -70,11 +126,25 @@ async def get_player_market_value(player_id: str):
     return player_market_value
 
 
-@router.get("/{player_id}/transfers", response_model=schemas.PlayerTransfers, response_model_exclude_none=True)
-async def get_player_transfers(player_id: str):
+@router.get(
+    "/{player_id}/transfers",
+    response_model=schemas.PlayerTransfers,
+    response_model_exclude_none=True,
+    summary="Get player transfers by ID",
+    description="Returns a list of transfers for a player.",
+    response_description="List of player transfers"
+)
+async def get_player_transfers(
+    player_id: str
+):
+    """
+    Get a list of transfers for a specific player.
+    
+    - **player_id**: Transfermarkt player ID
+    """
     # Check cache first
     cached_data = await CacheService.get_cached_response("player_transfers", player_id)
-    # Check if cache exists and is not older than 1 day
+    # Check if cache exists and is not expired
     if cached_data and not await CacheService.is_cache_expired(cached_data):
         return cached_data
         
@@ -90,11 +160,25 @@ async def get_player_transfers(player_id: str):
     return player_transfers
 
 
-@router.get("/{player_id}/jersey_numbers", response_model=schemas.PlayerJerseyNumbers, response_model_exclude_none=True)
-async def get_player_jersey_numbers(player_id: str):
+@router.get(
+    "/{player_id}/jersey_numbers",
+    response_model=schemas.PlayerJerseyNumbers,
+    response_model_exclude_none=True,
+    summary="Get player jersey numbers by ID",
+    description="Returns a list of jersey numbers for a player.",
+    response_description="List of player jersey numbers"
+)
+async def get_player_jersey_numbers(
+    player_id: str
+):
+    """
+    Get a list of jersey numbers for a specific player.
+    
+    - **player_id**: Transfermarkt player ID
+    """
     # Check cache first
     cached_data = await CacheService.get_cached_response("player_jersey_numbers", player_id)
-    # Check if cache exists and is not older than 1 day
+    # Check if cache exists and is not expired
     if cached_data and not await CacheService.is_cache_expired(cached_data):
         return cached_data
         
@@ -110,11 +194,25 @@ async def get_player_jersey_numbers(player_id: str):
     return player_jerseynumbers
 
 
-@router.get("/{player_id}/stats", response_model=schemas.PlayerStats, response_model_exclude_none=True)
-async def get_player_stats(player_id: str):
+@router.get(
+    "/{player_id}/stats",
+    response_model=schemas.PlayerStats,
+    response_model_exclude_none=True,
+    summary="Get player stats by ID",
+    description="Returns detailed statistics for a player.",
+    response_description="Detailed player statistics"
+)
+async def get_player_stats(
+    player_id: str
+):
+    """
+    Get detailed statistics for a specific player.
+    
+    - **player_id**: Transfermarkt player ID
+    """
     # Check cache first
     cached_data = await CacheService.get_cached_response("player_stats", player_id)
-    # Check if cache exists and is not older than 1 day
+    # Check if cache exists and is not expired
     if cached_data and not await CacheService.is_cache_expired(cached_data):
         return cached_data
         
@@ -130,12 +228,28 @@ async def get_player_stats(player_id: str):
     return player_stats
 
 
-@router.get("/{player_id}/injuries", response_model=schemas.PlayerInjuries, response_model_exclude_none=True)
-async def get_player_injuries(player_id: str, page_number: Optional[int] = 1):
+@router.get(
+    "/{player_id}/injuries",
+    response_model=schemas.PlayerInjuries,
+    response_model_exclude_none=True,
+    summary="Get player injuries by ID",
+    description="Returns a list of injuries for a player.",
+    response_description="List of player injuries"
+)
+async def get_player_injuries(
+    player_id: str,
+    page_number: Optional[int] = 1
+):
+    """
+    Get a list of injuries for a specific player.
+    
+    - **player_id**: Transfermarkt player ID
+    - **page_number**: Optional page number for paginated results (default: 1)
+    """
     # Check cache first - we include page number in the cache key
     cache_key = f"{player_id}_{page_number}"
     cached_data = await CacheService.get_cached_response("player_injuries", cache_key)
-    # Check if cache exists and is not older than 1 day
+    # Check if cache exists and is not expired
     if cached_data and not await CacheService.is_cache_expired(cached_data):
         return cached_data
         
@@ -152,11 +266,25 @@ async def get_player_injuries(player_id: str, page_number: Optional[int] = 1):
     return players_injuries
 
 
-@router.get("/{player_id}/achievements", response_model=schemas.PlayerAchievements, response_model_exclude_none=True)
-async def get_player_achievements(player_id: str):
+@router.get(
+    "/{player_id}/achievements",
+    response_model=schemas.PlayerAchievements,
+    response_model_exclude_none=True,
+    summary="Get player achievements by ID",
+    description="Returns a list of achievements for a player.",
+    response_description="List of player achievements"
+)
+async def get_player_achievements(
+    player_id: str
+):
+    """
+    Get a list of achievements for a specific player.
+    
+    - **player_id**: Transfermarkt player ID
+    """
     # Check cache first
     cached_data = await CacheService.get_cached_response("player_achievements", player_id)
-    # Check if cache exists and is not older than 1 day
+    # Check if cache exists and is not expired
     if cached_data and not await CacheService.is_cache_expired(cached_data):
         return cached_data
         
