@@ -1,13 +1,13 @@
 import asyncio
 import logging
-from datetime import datetime
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any 
 
 from app.db.database import Database
 from app.db.cache_service import CacheService
 from app.services.clubs.search import TransfermarktClubSearch
 from app.services.clubs.players import TransfermarktClubPlayers
 from app.services.players.profile import TransfermarktPlayerProfile
+from app.settings import settings
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -20,9 +20,6 @@ class BackgroundRefreshService:
     to avoid being blocked by the scraped website.
     """
     
-    # Delay between scraping requests in seconds
-    SCRAPE_DELAY = 10
-    
     def __init__(self):
         """Initialize the refresh service."""
         self.is_running = False
@@ -30,6 +27,10 @@ class BackgroundRefreshService:
     
     async def start(self):
         """Start the background refresh service."""
+        if not settings.BG_REFRESH_ENABLED:
+            logger.info("Background refresh service is disabled in settings")
+            return
+            
         if self.is_running:
             logger.info("Background refresh service is already running")
             return
@@ -62,8 +63,8 @@ class BackgroundRefreshService:
             except Exception as e:
                 logger.error(f"Error in refresh cycle: {e}")
             
-            # Wait a bit before starting a new cycle
-            await asyncio.sleep(60)
+            # Wait before starting a new cycle
+            await asyncio.sleep(settings.BG_REFRESH_CYCLE_DELAY)
     
     async def refresh_all_players(self):
         """Refresh all players from all clubs."""
@@ -75,11 +76,13 @@ class BackgroundRefreshService:
             return
             
         logger.info(f"Found {len(clubs)} clubs to process")
-        
+
         # Process each club
         for club in clubs:
             try:
                 await self.refresh_club_players(club["id"])
+                # Wait between requests to avoid overwhelming the server
+                await asyncio.sleep(settings.BG_REFRESH_SCRAPE_DELAY)
             except Exception as e:
                 logger.error(f"Error refreshing players for club {club['id']}: {e}")
     
@@ -103,13 +106,13 @@ class BackgroundRefreshService:
         for league_id in popular_leagues:
             tfmkt = TransfermarktClubSearch(query=league_id, page_number=1)
             clubs_data = tfmkt.search_clubs()
-            
+            k
             if clubs_data and "results" in clubs_data:
                 for club in clubs_data["results"]:
                     club_ids.append({"id": club["id"], "name": club["name"]})
             
             # Delay between requests
-            await asyncio.sleep(self.SCRAPE_DELAY)
+            await asyncio.sleep(settings.BG_REFRESH_SCRAPE_DELAY)
         
         return club_ids
     
@@ -122,7 +125,7 @@ class BackgroundRefreshService:
         club_players_data = tfmkt.get_club_players()
         
         # Wait between requests
-        await asyncio.sleep(self.SCRAPE_DELAY)
+        await asyncio.sleep(settings.BG_REFRESH_SCRAPE_DELAY)
         
         if not club_players_data or "players" not in club_players_data:
             logger.warning(f"No players found for club {club_id}")
@@ -136,7 +139,7 @@ class BackgroundRefreshService:
             await self.refresh_player_profile(player["id"])
             
             # Wait between requests to avoid rate limiting
-            await asyncio.sleep(self.SCRAPE_DELAY)
+            await asyncio.sleep(settings.BG_REFRESH_SCRAPE_DELAY)
     
     async def refresh_player_profile(self, player_id: str):
         """Refresh a player's profile data."""

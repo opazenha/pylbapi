@@ -1,6 +1,5 @@
 from typing import Dict, Any, Optional, List, Union, Type
 from datetime import datetime, timedelta
-import json
 
 from app.db.database import Database
 from pydantic import BaseModel
@@ -9,7 +8,7 @@ class CacheService:
     """Service for caching API responses in MongoDB."""
     
     # Cache expiration time in days
-    CACHE_EXPIRATION_DAYS = 1
+    CACHE_EXPIRATION_DAYS = 3
     
     @staticmethod
     async def get_cached_response(collection_name: str, resource_id: str) -> Optional[Dict[str, Any]]:
