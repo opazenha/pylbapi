@@ -1,62 +1,87 @@
-# transfermarkt-api
+# PyLBAPI - Transfermarkt Data API
 
-This project provides a lightweight and easy-to-use interface for extracting data from [Transfermarkt](https://www.transfermarkt.com/) 
-by applying web scraping processes and offering a RESTful API service via FastAPI. With this service, developers can 
-seamlessly integrate Transfermarkt data into their applications, websites, or data analysis pipelines.
+This project provides a FastAPI-based RESTful API service for extracting football data from [Transfermarkt](https://www.transfermarkt.com/) using web scraping techniques.
 
-Please note that the deployed application is used only for testing purposes and has a rate limiting 
-feature enabled. If you'd like to customize it, consider hosting in your own cloud service. 
+## Key Features
 
-### API Swagger
-https://transfermarkt-api.fly.dev/
+- **Data Scraping**: Fetches data for competitions, clubs, and players from Transfermarkt.
+- **FastAPI**: Built with the modern, fast (high-performance) web framework for building APIs with Python.
+- **MongoDB Caching**: Implements a caching layer using MongoDB to store API responses, reducing the need for frequent scraping and minimizing load on Transfermarkt's servers. Cached data expires after a configurable period (default: 3 days).
+- **Background Data Refresh**: Includes an asynchronous background service that periodically refreshes player data to keep the cache up-to-date. The refresh intervals and delays are configurable via environment variables.
+- **Dockerized**: Provides a `docker-compose` setup for easy deployment and management, including a persistent MongoDB volume.
 
-### Running Locally
+## Getting Started
 
-````bash
-# Clone the repository
-$ git clone https://github.com/felipeall/transfermarkt-api.git
+Follow these instructions to set up and run the project locally using Docker.
 
-# Go to the project's root folder
-$ cd transfermarkt-api
+### Prerequisites
 
-# Instantiate a Poetry virtual env
-$ poetry shell
+- [Git](https://git-scm.com/)
+- [Docker](https://www.docker.com/products/docker-desktop/)
+- [Docker Compose](https://docs.docker.com/compose/install/) (usually included with Docker Desktop)
 
-# Install the dependencies
-$ poetry install --no-root
+### Installation & Running
 
-# (optional) Append the current directory to PYTHONPATH
-$ export PYTHONPATH=$PYTHONPATH:$(pwd)
+1.  **Clone the repository:**
 
-# Start the API server
-$ python app/main.py
+    ```bash
+    git clone git@github.com:opazenha/pylbapi.git
+    cd pylbapi
+    ```
 
-# Access the API local page
-$ open http://localhost:8000/
-````
+2.  **(Optional) Configure Environment Variables:**
+    Create a `.env` file in the project root directory to customize settings. You can copy the example:
 
-### Running via Docker
+    ```bash
+    cp .env.example .env
+    ```
 
-````bash
-# Clone the repository
-$ git clone https://github.com/felipeall/transfermarkt-api.git
+    Modify the variables in `.env` as needed. Key variables include:
 
-# Go to the project's root folder
-$ cd transfermarkt-api
+    - `BG_REFRESH_ENABLED`: Set to `true` or `false` to enable/disable the background refresh task.
+    - `BG_REFRESH_SCRAPE_DELAY`: Delay (in seconds) between individual scraping requests within a refresh cycle.
+    - `BG_REFRESH_CYCLE_DELAY`: Delay (in seconds) between full refresh cycles.
+    - `RATE_LIMITING_ENABLE`: Set to `true` or `false` to enable/disable API rate limiting.
+    - `RATE_LIMITING_FREQUENCY`: Define the rate limit (e.g., `10/minute`).
 
-# Build the Docker image
-$ docker build -t transfermarkt-api . 
+3.  **Build and Run with Docker Compose:**
+    From the project root directory, run:
 
-# Instantiate the Docker container
-$ docker run -d -p 8000:8000 transfermarkt-api
+    ```bash
+    docker-compose up --build -d
+    ```
 
-# Access the API local page
-$ open http://localhost:8000/
-````
+    This command will build the Docker images (if they don't exist) and start the API service and the MongoDB database container in detached mode.
 
-### Environment Variables
+4.  **Access the API:**
+    The API will be available at `http://localhost:8000`. You can access the interactive Swagger UI documentation at `http://localhost:8000/docs`.
 
-| Variable                  | Description                                               | Default      |
-|---------------------------|-----------------------------------------------------------|--------------|
-| `RATE_LIMITING_ENABLE`    | Enable rate limiting feature for API calls                | `false`      |
-| `RATE_LIMITING_FREQUENCY` | Delay allowed between each API call. See [slowapi](https://slowapi.readthedocs.io/en/latest/) for more | `2/3seconds` |
+### Stopping the Application
+
+To stop the running containers:
+
+```bash
+docker-compose down
+```
+
+To stop and remove the data volume (use with caution, as this deletes cached data):
+
+```bash
+docker-compose down -v
+```
+
+## Project Structure
+
+- `app/`: Contains the main application code.
+  - `api/`: FastAPI endpoints, routers.
+  - `db/`: Database connection, cache service logic.
+  - `schemas/`: Pydantic models for data validation and serialization.
+  - `services/`: Web scraping logic for different Transfermarkt sections.
+  - `tasks/`: Background tasks (like the data refresh service).
+  - `utils/`: Utility functions (regex, XPath, etc.).
+  - `main.py`: FastAPI application entry point.
+  - `settings.py`: Application settings configuration.
+- `docker-compose.yml`: Docker Compose configuration file.
+- `Dockerfile`: Instructions for building the API service Docker image.
+- `.env.example`: Example environment variables file.
+- `README.md`: This file.
