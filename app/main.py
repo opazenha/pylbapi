@@ -42,6 +42,7 @@ async def startup_db_client():
     
     # Start the background refresh service
     await background_refresh_service.start()
+    # logger.info("Background refresh service temporarily disabled for debugging.")
 
 
 @app.on_event("shutdown")

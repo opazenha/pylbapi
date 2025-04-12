@@ -1,6 +1,7 @@
 import asyncio
 import logging
 from typing import List, Dict, Any 
+from asyncio import Lock
 
 from app.db.database import Database
 from app.db.cache_service import CacheService
@@ -24,6 +25,7 @@ class BackgroundRefreshService:
         """Initialize the refresh service."""
         self.is_running = False
         self.task = None
+        self.db_lock = Lock()  # Lock for database operations
     
     async def start(self):
         """Start the background refresh service."""
@@ -69,7 +71,8 @@ class BackgroundRefreshService:
     async def refresh_all_players(self):
         """Refresh all players from all clubs."""
         # Get all clubs first
-        clubs = await self.get_all_clubs()
+        async with self.db_lock:  # Use lock for database access
+            clubs = await self.get_all_clubs()
         
         if not clubs:
             logger.warning("No clubs found to refresh players from")
@@ -88,13 +91,17 @@ class BackgroundRefreshService:
     
     async def get_all_clubs(self) -> List[Dict[str, Any]]:
         """Get all clubs from the database or scrape them if needed."""
-        # Check if we have clubs in the database
-        collection = await Database.get_collection("clubs")
-        clubs = await collection.find({}).to_list(length=1000)
-        
-        if clubs:
-            logger.info(f"Found {len(clubs)} clubs in the database")
-            return clubs
+        try:
+            # Check if we have clubs in the database
+            collection = await Database.get_collection("clubs")
+            clubs = await collection.find({}).to_list(length=1000)
+            
+            if clubs:
+                logger.info(f"Found {len(clubs)} clubs in the database")
+                return clubs
+        except Exception as e:
+            logger.error(f"Error getting clubs from database: {e}")
+            return []
             
         # If no clubs in database, scrape some popular leagues
         logger.info("No clubs in database, scraping popular leagues")
@@ -106,7 +113,7 @@ class BackgroundRefreshService:
         for league_id in popular_leagues:
             tfmkt = TransfermarktClubSearch(query=league_id, page_number=1)
             clubs_data = tfmkt.search_clubs()
-            k
+            
             if clubs_data and "results" in clubs_data:
                 for club in clubs_data["results"]:
                     club_ids.append({"id": club["id"], "name": club["name"]})
@@ -140,17 +147,16 @@ class BackgroundRefreshService:
             
             # Wait between requests to avoid rate limiting
             await asyncio.sleep(settings.BG_REFRESH_SCRAPE_DELAY)
+            
+            # Yield control to other tasks occasionally
+            await asyncio.sleep(0)
     
     async def refresh_player_profile(self, player_id: str):
         """Refresh a player's profile data."""
         logger.info(f"Refreshing player profile: {player_id}")
         
         try:
-            # Check if we have this player cached and if it's an LB player
-            cached_player = await CacheService.get_cached_response("players", player_id)
-            is_lb_player = cached_player.get("isLbPlayer", False) if cached_player else False
-            
-            # Fetch fresh player data
+            # First fetch player data without locking the database
             tfmkt = TransfermarktPlayerProfile(player_id=player_id)
             player_data = tfmkt.get_player_profile()
             
@@ -161,12 +167,18 @@ class BackgroundRefreshService:
             # Prepare data for caching
             data = player_data.dict() if hasattr(player_data, "dict") else player_data
             
-            # Preserve the isLbPlayer flag if it was set
-            if is_lb_player:
-                data["isLbPlayer"] = True
+            # Now acquire lock for database operations
+            async with self.db_lock:
+                # Check if we have this player cached and if it's an LB player
+                cached_player = await CacheService.get_cached_response("players", player_id)
+                is_lb_player = cached_player.get("isLbPlayer", False) if cached_player else False
                 
-            # Cache the refreshed data
-            await CacheService.cache_response("players", data)
+                # Preserve the isLbPlayer flag if it was set
+                if is_lb_player:
+                    data["isLbPlayer"] = True
+                
+                # Cache the refreshed data within the lock
+                await CacheService.cache_response("players", data)
             logger.info(f"Successfully refreshed player {player_id}")
             
         except Exception as e:

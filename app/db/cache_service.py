@@ -10,6 +10,19 @@ class CacheService:
     # Cache expiration time in days
     CACHE_EXPIRATION_DAYS = 3
     
+    # List of collection names used for caching
+    COLLECTIONS = [
+        "competitions",
+        "clubs", 
+        "players", 
+        "player_market_values", 
+        "player_transfers", 
+        "player_jersey_numbers", 
+        "player_stats", 
+        "player_achievements", 
+        "player_injuries"
+    ]
+    
     @staticmethod
     async def get_cached_response(collection_name: str, resource_id: str) -> Optional[Dict[str, Any]]:
         """
@@ -23,6 +36,36 @@ class CacheService:
             Cached response or None if not found
         """
         return await Database.find_one(collection_name, {"id": resource_id})
+        
+    @staticmethod
+    async def get_all_cached_responses(collection_name: str, limit: int = 0, skip: int = 0) -> List[Dict[str, Any]]:
+        """
+        Get all cached responses from a collection.
+        
+        Args:
+            collection_name: Name of the collection to get items from
+            limit: Maximum number of items to return (default: 0, no limit)
+            skip: Number of items to skip (default: 0)
+            
+        Returns:
+            List of cached items
+        """
+        return await Database.find_all(collection_name, {}, limit=limit, skip=skip)
+    
+    @staticmethod
+    async def count_cached_responses(collection_name: str, query: Dict[str, Any] = None) -> int:
+        """
+        Count the number of documents in a collection.
+        
+        Args:
+            collection_name: Name of the collection to count items in
+            query: Optional query to filter which documents to count
+            
+        Returns:
+            Number of documents in the collection
+        """
+        collection = await Database.get_collection(collection_name)
+        return await collection.count_documents(query or {})
     
     @staticmethod
     async def is_cache_expired(data: Dict[str, Any]) -> bool:

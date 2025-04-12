@@ -37,6 +37,33 @@ class Database:
         """Find a single document in the collection."""
         collection = await cls.get_collection(collection_name)
         return await collection.find_one(query)
+        
+    @classmethod
+    async def find_all(cls, collection_name: str, query: Dict[str, Any] = None, limit: int = 0, skip: int = 0) -> List[Dict[str, Any]]:
+        """
+        Find all documents in the collection that match the query.
+        
+        Args:
+            collection_name: Name of the collection to search in
+            query: Query to filter documents (default: None, returns all documents)
+            limit: Maximum number of documents to return (default: 0, no limit)
+            skip: Number of documents to skip (default: 0)
+            
+        Returns:
+            List of documents
+        """
+        collection = await cls.get_collection(collection_name)
+        query = query or {}
+        # Exclude the MongoDB internal _id field as it's not JSON serializable by default
+        cursor = collection.find(query, {'_id': 0}).skip(skip)
+        
+        if limit > 0:
+            cursor = cursor.limit(limit)
+            
+        # If limit is 0, fetch all (or a reasonably large number to prevent excessive memory usage)
+        # Otherwise, fetch only the specified number of documents.
+        # Since the API enforces a limit (default 10, max 50), directly using limit is safe here.
+        return await cursor.to_list(length=limit if limit > 0 else None)
 
     @classmethod
     async def insert_one(cls, collection_name: str, document: Dict[str, Any]) -> str:
@@ -65,3 +92,9 @@ class Database:
         
         await cls.insert_one(collection_name, document)
         return await cls.find_one(collection_name, query)
+        
+    @classmethod
+    async def get_collection_names(cls) -> List[str]:
+        """Get a list of all collection names in the database."""
+        db = cls.get_db()
+        return await db.list_collection_names()
