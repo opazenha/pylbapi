@@ -1,9 +1,10 @@
 from fastapi import APIRouter
 
-from app.api.endpoints import clubs, competitions, players, cache
+from app.api.endpoints import clubs, competitions, players, cache, partners
 
 api_router = APIRouter()
 api_router.include_router(competitions.router, prefix="/competitions", tags=["competitions"])
 api_router.include_router(clubs.router, prefix="/clubs", tags=["clubs"])
 api_router.include_router(players.router, prefix="/players", tags=["players"])
 api_router.include_router(cache.router, prefix="/cache", tags=["cache"])
+api_router.include_router(partners.router, prefix="/partners", tags=["partners"])

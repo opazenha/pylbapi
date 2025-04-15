@@ -1,5 +1,6 @@
 from datetime import date
 from enum import Enum
+from re import S
 from typing import Optional
 
 from pydantic import HttpUrl
@@ -51,7 +52,6 @@ class Relatives(TransfermarktBaseModel):
     name: str
     profile_type: RelativeProfileTypeEnum
 
-
 class PlayerProfile(TransfermarktBaseModel, AuditMixin):
     id: str
     url: HttpUrl
@@ -77,3 +77,4 @@ class PlayerProfile(TransfermarktBaseModel, AuditMixin):
     socialMedia: Optional[list[str]]
     trainer_profile: Optional[TrainerProfile]
     relatives: Optional[list[Relatives]]
+    notes: Optional
