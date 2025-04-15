@@ -77,4 +77,4 @@ class PlayerProfile(TransfermarktBaseModel, AuditMixin):
     socialMedia: Optional[list[str]]
     trainer_profile: Optional[TrainerProfile]
     relatives: Optional[list[Relatives]]
-    notes: Optional
+    notes: Optional[str] = None

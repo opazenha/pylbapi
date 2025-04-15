@@ -1,8 +1,9 @@
 from typing import Optional
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException, status
 
 from app.schemas import players as schemas
+from app.schemas.player_registration import PlayerRegistration
 from app.services.players.achievements import TransfermarktPlayerAchievements
 from app.services.players.injuries import TransfermarktPlayerInjuries
 from app.services.players.jersey_numbers import TransfermarktPlayerJerseyNumbers
@@ -12,8 +13,85 @@ from app.services.players.search import TransfermarktPlayerSearch
 from app.services.players.stats import TransfermarktPlayerStats
 from app.services.players.transfers import TransfermarktPlayerTransfers
 from app.db.cache_service import CacheService
+from app.db.database import Database
+import logging
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
+
+@router.post(
+    "/",
+    response_model=schemas.PlayerProfile,
+    response_model_exclude_none=True,
+    summary="Register a new player",
+    description="""Register a player by Transfermarkt ID and add custom metadata.
+    
+    This endpoint will:
+    1. Scrape the player data from Transfermarkt using the provided ID
+    2. Add the custom fields (youtubeUrl, notes, partnerId)
+    3. Save to MongoDB with isLbPlayer flag set to true
+    4. Return the enriched player profile
+    """,
+    response_description="Enriched player profile with custom metadata",
+    status_code=status.HTTP_201_CREATED,
+    responses={
+        201: {"description": "Player successfully registered"},
+        404: {"description": "Player not found on Transfermarkt"},
+        422: {"description": "Validation error in request data"},
+        500: {"description": "Server error during registration"}
+    }
+)
+async def register_player(player_data: PlayerRegistration):
+    """Register a player with additional metadata."""
+    try:
+        # 1. Fetch player data from Transfermarkt
+        # transfermarktId is guaranteed to be set by the model validator
+        player_id = player_data.transfermarktId
+        
+        logger.info(f"Fetching player data for ID: {player_id}")
+        tfmkt = TransfermarktPlayerProfile(player_id=player_id)
+        player_info = tfmkt.get_player_profile()
+        
+        if not player_info:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Player with ID {player_id} not found on Transfermarkt"
+            )
+        
+        # 2. Convert to dict and add custom fields
+        data = player_info.dict() if hasattr(player_info, "dict") else player_info
+        
+        # Add the LB player flag and custom metadata
+        data["isLbPlayer"] = True
+        
+        # Add YouTube URL if provided
+        if player_data.youtubeUrl:
+            data["youtubeUrl"] = player_data.youtubeUrl
+            
+        # Add notes if provided
+        if player_data.notes:
+            data["notes"] = player_data.notes
+            
+        # Add partner ID if provided
+        if player_data.partnerId:
+            data["partnerId"] = player_data.partnerId
+        
+        # 3. Save to MongoDB
+        await CacheService.cache_response("players", data)
+        
+        # 4. Return the enriched player profile
+        return data
+        
+    except HTTPException as he:
+        # Re-raise HTTP exceptions
+        raise he
+    except Exception as e:
+        logger.error(f"Error registering player: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error registering player: {str(e)}"
+        )
 
 
 @router.get(
