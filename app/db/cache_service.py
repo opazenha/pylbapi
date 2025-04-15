@@ -20,7 +20,8 @@ class CacheService:
         "player_jersey_numbers", 
         "player_stats", 
         "player_achievements", 
-        "player_injuries"
+        "player_injuries",
+        "partners"
     ]
     
     @staticmethod

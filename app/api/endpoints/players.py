@@ -59,10 +59,18 @@ async def register_player(player_data: PlayerRegistration):
                 detail=f"Player with ID {player_id} not found on Transfermarkt"
             )
         
-        # 2. Convert to dict and add custom fields
+        # --- Agent extraction and partner save logic ---
         data = player_info.dict() if hasattr(player_info, "dict") else player_info
+        agent = data.get("agent")
+        if agent and agent.get("name"):
+            partner_data = {
+                "name": agent["name"],
+                "transfermarktUrl": agent.get("url"),
+                "notes": ""
+            }
+            await Database.find_or_create("partners", {"name": agent["name"]}, partner_data)
         
-        # Add the LB player flag and custom metadata
+        # 2. Add custom fields and isLbPlayer flag
         data["isLbPlayer"] = True
         
         # Add YouTube URL if provided
@@ -159,14 +167,24 @@ async def get_player_profile(
     # If not in cache or cache is expired, fetch from the API
     tfmkt = TransfermarktPlayerProfile(player_id=player_id)
     player_info = tfmkt.get_player_profile()
-    
+
     # Cache the result
     if player_info:
         data = player_info.dict() if hasattr(player_info, "dict") else player_info
+        # --- Agent extraction and partner save logic ---
+        agent = data.get("agent")
+        if agent and agent.get("name"):
+            partner_data = {
+                "name": agent["name"],
+                "transfermarktUrl": agent.get("url"),
+                "notes": ""
+            }
+            # Ensure name is unique
+            await Database.find_or_create("partners", {"name": agent["name"]}, partner_data)
         # Add the LB player flag
         data["isLbPlayer"] = isLbPlayer
         await CacheService.cache_response("players", data)
-        
+
     return player_info
 
 
