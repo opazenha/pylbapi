@@ -20,6 +20,73 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
+async def ensure_partner_from_agent(player_info):
+    """
+    Extract agent from player_info and ensure unique partner is added to MongoDB.
+    Accepts dict or Pydantic model.
+    """
+    data = player_info.dict() if hasattr(player_info, "dict") else player_info
+    agent = data.get("agent")
+    if agent and agent.get("name"):
+        partner_data = {
+            "name": agent["name"],
+            "transfermarktUrl": agent.get("url"),
+            "notes": ""
+        }
+        await Database.find_or_create("partners", {"name": agent["name"]}, partner_data)
+
+async def check_if_lb_player(player_info) -> bool:
+    """
+    Check if the agency scraped on from Transfermarkt is LB SPORTS COMPANY and return bollean.
+    """
+    data = player_info.dict() if hasattr(player_info, "dict") else player_info
+    if data.get("agent").get("name") == "LB SPORTS COMPANY":
+        return True
+    return False
+
+async def register_player(player_data: PlayerRegistration):
+    """Register a player with additional metadata."""
+    try:
+        # 1. Fetch player data from Transfermarkt
+        # transfermarktId is guaranteed to be set by the model validator
+        player_id = player_data.transfermarktId
+        
+        logger.info(f"Fetching player data for ID: {player_id}")
+        tfmkt = TransfermarktPlayerProfile(player_id=player_id)
+        player_info = tfmkt.get_player_profile()
+        
+        if not player_info:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Player with ID {player_id} not found on Transfermarkt"
+            )
+        
+        # Ensure partner is added from agent
+        await ensure_partner_from_agent(player_info)
+        data = player_info.dict() if hasattr(player_info, "dict") else player_info
+        # 2. Add custom fields and isLbPlayer flag
+        data["youtubeUrl"] = player_data.youtubeUrl
+        data["notes"] = player_data.notes
+        data["partnerId"] = player_data.partnerId
+        # Properly determine isLbPlayer using check_if_lb_player
+        data["isLbPlayer"] = await check_if_lb_player(player_info)
+        
+        # 3. Save to MongoDB (cache)
+        await CacheService.cache_response("players", data)
+        
+        return data
+        
+    except HTTPException as he:
+        # Re-raise HTTP exceptions
+        raise he
+    except Exception as e:
+        logger.error(f"Error registering player: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error registering player: {str(e)}"
+        )
+
+
 @router.post(
     "/",
     response_model=schemas.PlayerProfile,
@@ -42,64 +109,8 @@ router = APIRouter()
         500: {"description": "Server error during registration"}
     }
 )
-async def register_player(player_data: PlayerRegistration):
-    """Register a player with additional metadata."""
-    try:
-        # 1. Fetch player data from Transfermarkt
-        # transfermarktId is guaranteed to be set by the model validator
-        player_id = player_data.transfermarktId
-        
-        logger.info(f"Fetching player data for ID: {player_id}")
-        tfmkt = TransfermarktPlayerProfile(player_id=player_id)
-        player_info = tfmkt.get_player_profile()
-        
-        if not player_info:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"Player with ID {player_id} not found on Transfermarkt"
-            )
-        
-        # --- Agent extraction and partner save logic ---
-        data = player_info.dict() if hasattr(player_info, "dict") else player_info
-        agent = data.get("agent")
-        if agent and agent.get("name"):
-            partner_data = {
-                "name": agent["name"],
-                "transfermarktUrl": agent.get("url"),
-                "notes": ""
-            }
-            await Database.find_or_create("partners", {"name": agent["name"]}, partner_data)
-        
-        # 2. Add custom fields and isLbPlayer flag
-        data["isLbPlayer"] = True
-        
-        # Add YouTube URL if provided
-        if player_data.youtubeUrl:
-            data["youtubeUrl"] = player_data.youtubeUrl
-            
-        # Add notes if provided
-        if player_data.notes:
-            data["notes"] = player_data.notes
-            
-        # Add partner ID if provided
-        if player_data.partnerId:
-            data["partnerId"] = player_data.partnerId
-        
-        # 3. Save to MongoDB
-        await CacheService.cache_response("players", data)
-        
-        # 4. Return the enriched player profile
-        return data
-        
-    except HTTPException as he:
-        # Re-raise HTTP exceptions
-        raise he
-    except Exception as e:
-        logger.error(f"Error registering player: {str(e)}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Error registering player: {str(e)}"
-        )
+async def create_player(player_data: PlayerRegistration):
+    return await register_player(player_data)
 
 
 @router.get(
@@ -168,22 +179,15 @@ async def get_player_profile(
     tfmkt = TransfermarktPlayerProfile(player_id=player_id)
     player_info = tfmkt.get_player_profile()
 
-    # Cache the result
-    if player_info:
-        data = player_info.dict() if hasattr(player_info, "dict") else player_info
-        # --- Agent extraction and partner save logic ---
-        agent = data.get("agent")
-        if agent and agent.get("name"):
-            partner_data = {
-                "name": agent["name"],
-                "transfermarktUrl": agent.get("url"),
-                "notes": ""
-            }
-            # Ensure name is unique
-            await Database.find_or_create("partners", {"name": agent["name"]}, partner_data)
-        # Add the LB player flag
+    # Ensure partner is added from agent
+    await ensure_partner_from_agent(player_info)
+    data = player_info.dict() if hasattr(player_info, "dict") else player_info
+    # Add the LB player flag
+    if isLbPlayer:
         data["isLbPlayer"] = isLbPlayer
-        await CacheService.cache_response("players", data)
+    # Add the LB player flag (use check_if_lb_player for consistency)
+    data["isLbPlayer"] = await check_if_lb_player(player_info) if "isLbPlayer" not in data else data["isLbPlayer"]
+    await CacheService.cache_response("players", data)
 
     return player_info
 
