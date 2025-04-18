@@ -2,6 +2,7 @@ from fastapi import APIRouter, HTTPException
 from app.schemas.partner import PartnerCreate, PartnerOut
 from app.db.database import Database
 from typing import Any
+from urllib.parse import urljoin
 
 router = APIRouter()
 
@@ -33,3 +34,32 @@ async def register_partner(partner: PartnerCreate):
     inserted_id = await Database.insert_one("partners", data)
     data["id"] = str(inserted_id)
     return PartnerOut(**data)
+
+@router.delete(
+    "/{partner_name}",
+    response_model=PartnerOut,
+    summary="Delete Partner by Name",
+    description="Deletes a partner by name and returns the deleted partner info.",
+    responses={
+        200: {"description": "Partner successfully deleted"},
+        404: {"description": "Partner not found"},
+        500: {"description": "Database error"}
+    },
+    tags=["partners"]
+)
+async def delete_partner(partner_name: str):
+    # Trim whitespace and find partner by exact name
+    partner_name = partner_name.strip()
+    partner = await Database.find_one("partners", {"name": partner_name})
+    if not partner:
+        raise HTTPException(status_code=404, detail="Partner not found")
+    # Delete partner
+    await Database.delete_one("partners", {"name": partner_name})
+    # Convert MongoDB _id to id field
+    if "_id" in partner:
+        partner["id"] = str(partner["_id"])
+        del partner["_id"]
+    # Ensure transfermarktUrl is absolute for Pydantic validation
+    if "transfermarktUrl" in partner and partner["transfermarktUrl"] and partner["transfermarktUrl"].startswith("/"):
+        partner["transfermarktUrl"] = urljoin("https://www.transfermarkt.com", partner["transfermarktUrl"])
+    return PartnerOut(**partner)

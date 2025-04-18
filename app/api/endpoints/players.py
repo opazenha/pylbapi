@@ -191,6 +191,31 @@ async def get_player_profile(
 
     return player_info
 
+@router.delete(
+    "/{player_id}/profile",
+    response_model=schemas.PlayerProfile,
+    summary="Delete player by player ID",
+    description="Returns the player profile being deleted.",
+    response_description="Playe profile information."
+)
+async def delete_player_profile(player_id: str):
+    """
+    Delete the player that holds the provided ID
+
+    - **player_id**: Transfermarkt player ID
+    """
+    from fastapi import HTTPException
+    from app.db.database import Database
+
+    # Fetch the player profile first
+    player = await Database.find_one("players", {"id": player_id})
+    if not player:
+        raise HTTPException(status_code=404, detail="Player not found")
+    # Delete the player
+    deleted = await Database.delete_one("players", {"id": player_id})
+    if not deleted:
+        raise HTTPException(status_code=500, detail="Failed to delete player")
+    return player
 
 @router.get(
     "/{player_id}/market_value",

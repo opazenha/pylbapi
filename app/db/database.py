@@ -94,6 +94,13 @@ class Database:
         return await cls.find_one(collection_name, query)
         
     @classmethod
+    async def delete_one(cls, collection_name: str, query: Dict[str, Any]) -> bool:
+        """Delete a single document from the collection."""
+        collection = await cls.get_collection(collection_name)
+        result = await collection.delete_one(query)
+        return result.deleted_count > 0
+
+    @classmethod
     async def get_collection_names(cls) -> List[str]:
         """Get a list of all collection names in the database."""
         db = cls.get_db()

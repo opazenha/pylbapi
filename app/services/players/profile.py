@@ -4,7 +4,7 @@ from app.services.base import TransfermarktBase
 from app.utils.regex import REGEX_DOB_AGE
 from app.utils.utils import extract_from_url, safe_regex, trim
 from app.utils.xpath import Players
-
+from app.services.players.market_value import TransfermarktPlayerMarketValue
 
 @dataclass
 class TransfermarktPlayerProfile(TransfermarktBase):
@@ -100,7 +100,14 @@ class TransfermarktPlayerProfile(TransfermarktBase):
             "lastClubName": self.get_text_by_xpath(Players.Profile.LAST_CLUB_NAME),
             "mostGamesFor": self.get_text_by_xpath(Players.Profile.MOST_GAMES_FOR_CLUB_NAME),
         }
-        self.response["marketValue"] = self.get_text_by_xpath(Players.Profile.MARKET_VALUE, iloc_to=3, join_str="")
+        market_value = self.get_text_by_xpath(Players.Profile.MARKET_VALUE, iloc_to=3, join_str="")
+        # Fallback to market_value service if scraped value is missing or 'Unknown'
+        if not market_value or (isinstance(market_value, str) and market_value.strip().lower() == "unknown"):
+            mv_service = TransfermarktPlayerMarketValue(player_id=self.player_id)
+            mv_data = mv_service.get_player_market_value()
+            self.response["marketValue"] = mv_data.get("marketValue")
+        else:
+            self.response["marketValue"] = market_value
         self.response["agent"] = {
             "name": self.get_text_by_xpath(Players.Profile.AGENT_NAME),
             "url": self.get_text_by_xpath(Players.Profile.AGENT_URL),
