@@ -169,9 +169,10 @@ async def get_player_profile(
     cached_data = await CacheService.get_cached_response("players", player_id)
     # Check if cache exists and is not expired
     if cached_data and not await CacheService.is_cache_expired(cached_data):
-        # If we're updating the isLbPlayer flag, update the cached record
-        if isLbPlayer != cached_data.get("isLbPlayer", False):
-            cached_data["isLbPlayer"] = isLbPlayer
+        # Always ensure isLbPlayer based on agent
+        new_flag = await check_if_lb_player(cached_data)
+        if new_flag != cached_data.get("isLbPlayer", False):
+            cached_data["isLbPlayer"] = new_flag
             await CacheService.cache_response("players", cached_data)
         return cached_data
         
@@ -182,14 +183,11 @@ async def get_player_profile(
     # Ensure partner is added from agent
     await ensure_partner_from_agent(player_info)
     data = player_info.dict() if hasattr(player_info, "dict") else player_info
-    # Add the LB player flag
-    if isLbPlayer:
-        data["isLbPlayer"] = isLbPlayer
-    # Add the LB player flag (use check_if_lb_player for consistency)
-    data["isLbPlayer"] = await check_if_lb_player(player_info) if "isLbPlayer" not in data else data["isLbPlayer"]
+    # Determine isLbPlayer based on agent
+    data["isLbPlayer"] = await check_if_lb_player(player_info)
     await CacheService.cache_response("players", data)
 
-    return player_info
+    return data
 
 @router.delete(
     "/{player_id}/profile",
