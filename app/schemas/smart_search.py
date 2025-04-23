@@ -25,4 +25,5 @@ class SmartSearchFields(BaseModel):
     min_market_value: Optional[int] = Field(None, description="Minimum market value")
     max_market_value: Optional[int] = Field(None, description="Maximum market value")
     position: PositionEnum = Field(PositionEnum.all_positions, description="Player position")
+    suggested_players: Optional[str] = Field(None, description="List of player names, mainPosition, marketvalue and contractExpireDate that suits the club search")
     advise: Optional[str] = Field(None, description="Advise for other good searches")
