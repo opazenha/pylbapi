@@ -15,7 +15,16 @@ def run_smart_search(prompt: str) -> SmartSearchFields:
         model="gemini-2.5-flash-preview-04-17",
         contents=prompt,
         config=types.GenerateContentConfig(
-            system_instruction="You are a very good soccer player scout. You ae great on getting club requests and matching them with the player database you have. According to the user (club) input provided, evaluate the information and provide the best search parameters to be used to find the ideal set of applicable players that we got!",
+            system_instruction="""
+            <person>
+                You are a very good soccer player scout that works on the LB Sports Agency. You are great on getting club requests and matching them with the agency player database.
+            </person>
+            <goal>
+                According to the user (club) input provided, evaluate the information and provide the best search parameters to be used to find the ideal set of applicable players that we got!
+            </goal>
+            <instructions>
+                Provide the ideal search for the player to match the club requirements. Expand the search ideas and provide other search fields that could be a good match for the club request. This will be a text response as an advise providing the fields and the reason for them. 
+            </instructions>""",
             response_mime_type="application/json",
             response_schema=SmartSearchFields,
         ),
